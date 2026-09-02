@@ -6,6 +6,7 @@
 Без сборщиков и зависимостей: GitHub Pages отдаёт docs/ прямо из main,
 CI не нужен. Пустой фид — не ошибка: рисуется честное «пока пусто».
 """
+import glob
 import html
 import json
 import os
@@ -33,7 +34,7 @@ T = {
            "issuer": "Издатель", "num": "Документ", "date": "Дата", "loc": "Где смотреть",
            "open": "Открыть первоисточник", "back": "Все записи", "empty": "Пока ни одной записи.",
            "emptyw": "Записи появляются здесь после того, как методист принял черновик.",
-           "year": "Учебный год", "all": "Все",
+           "year": "Учебный год", "all": "Все", "rev": "Очередь на ревью",
            "disc": "Это пересказ документа, а не официальное разъяснение. "
                    "Решения принимайте по первоисточнику — ссылка выше."},
     "kk": {"title": "Не өзгерді", "sub": "Қазақстан мұғалімдеріне арналған нормативтік өзгерістер",
@@ -41,7 +42,7 @@ T = {
            "issuer": "Шығарушы", "num": "Құжат", "date": "Күні", "loc": "Қайдан қарау",
            "open": "Бастапқы дереккөзді ашу", "back": "Барлық жазба", "empty": "Әзірге жазба жоқ.",
            "emptyw": "Жазбалар әдіскер жобаны қабылдағаннан кейін осында шығады.",
-           "year": "Оқу жылы", "all": "Барлығы",
+           "year": "Оқу жылы", "all": "Барлығы", "rev": "Тексеру кезегі",
            "disc": "Бұл — құжаттың мазмұндамасы, ресми түсіндірме емес. "
                    "Шешімді бастапқы дереккөз бойынша қабылдаңыз — сілтеме жоғарыда."},
 }
@@ -124,6 +125,8 @@ text-transform:uppercase;color:var(--dim);margin-bottom:5px}
 .disc{margin-top:26px;padding:13px 16px;border-left:3px solid var(--line);
 color:var(--dim);font-size:13px;line-height:1.6}
 footer{border-top:1px solid var(--line);padding:20px 0;color:var(--dim);font-size:12.5px}
+footer a{color:var(--dim)}
+footer a:hover{color:var(--acc)}
 @media(max-width:600px){.hd{flex-direction:column;gap:12px}article h2{font-size:21px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 """
@@ -141,7 +144,8 @@ HEAD = """<!doctype html><html lang="{lang}"><head><meta charset="utf-8">
 <div class="lang">{langs}</div>
 </div></div></header><main><div class="wrap">"""
 
-FOOT = """</div></main><footer><div class="wrap">WONK · обновлено {upd} · публикует методист</div></footer>
+FOOT = """</div></main><footer><div class="wrap">WONK · обновлено {upd} · публикует методист
+· <a href="{up}review.html">{rev}</a></div></footer>
 </body></html>"""
 
 
@@ -155,7 +159,7 @@ def shell(lang, title, desc, inner, depth=0):
     return (HEAD.format(lang=lang, title=e(title), desc=e(desc), css=CSS,
                         home=f'{up}{"index" if lang == "ru" else "index.kk"}.html',
                         h1=e(t["title"]), sub=e(t["sub"]), langs=langs)
-            + inner + FOOT.format(upd=date.today().isoformat()))
+            + inner + FOOT.format(upd=date.today().isoformat(), up=up, rev=e(t["rev"])))
 
 
 def item(x, lang):
@@ -227,8 +231,13 @@ def main():
     feed = [x for x in feed if x.get("status") != "retracted"]
     feed.sort(key=lambda x: x.get("published_at") or "", reverse=True)
 
-    if os.path.isdir(out):
-        shutil.rmtree(out)
+    # Сносим только то, чем управляет этот скрипт: review.html и robots.txt
+    # кладёт sync_review.sh, и rmtree всей папки стирал бы их каждой пересборкой.
+    if os.path.isdir(os.path.join(out, "e")):
+        shutil.rmtree(os.path.join(out, "e"))
+    for f in glob.glob(os.path.join(out, "index*.html")) + [os.path.join(out, "feed.json")]:
+        if os.path.exists(f):
+            os.remove(f)
     os.makedirs(os.path.join(out, "e"), exist_ok=True)
 
     for lang in ("ru", "kk"):

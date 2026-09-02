@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """feed.json -> статический сайт «Что изменилось» в docs/.
 
-    python3 build.py [путь/к/feed.json]
+    python3 build.py [путь/к/feed.json] [папка-вывода]
 
 Без сборщиков и зависимостей: GitHub Pages отдаёт docs/ прямо из main,
 CI не нужен. Пустой фид — не ошибка: рисуется честное «пока пусто».
@@ -220,28 +220,31 @@ def page_entry(x, lang):
 
 def main():
     fn = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "feed.json")
+    # Второй аргумент — чтобы собрать предпросмотр, не трогая docs/,
+    # который уходит в репозиторий.
+    out = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else OUT
     feed = json.load(open(fn, encoding="utf-8")) if os.path.exists(fn) else []
     feed = [x for x in feed if x.get("status") != "retracted"]
     feed.sort(key=lambda x: x.get("published_at") or "", reverse=True)
 
-    if os.path.isdir(OUT):
-        shutil.rmtree(OUT)
-    os.makedirs(os.path.join(OUT, "e"), exist_ok=True)
+    if os.path.isdir(out):
+        shutil.rmtree(out)
+    os.makedirs(os.path.join(out, "e"), exist_ok=True)
 
     for lang in ("ru", "kk"):
         name = "index.html" if lang == "ru" else "index.kk.html"
-        open(os.path.join(OUT, name), "w", encoding="utf-8").write(page_index(feed, lang))
+        open(os.path.join(out, name), "w", encoding="utf-8").write(page_index(feed, lang))
         for x in feed:
-            open(os.path.join(OUT, "e", f'{x["slug"]}.{lang}.html'), "w",
+            open(os.path.join(out, "e", f'{x["slug"]}.{lang}.html'), "w",
                  encoding="utf-8").write(page_entry(x, lang))
 
     # Фид отдаём как есть: по нему можно построить другую витрину.
-    json.dump(feed, open(os.path.join(OUT, "feed.json"), "w", encoding="utf-8"),
+    json.dump(feed, open(os.path.join(out, "feed.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     # Pages иначе прогонит страницы через Jekyll и сломает пути с подчёркиваниями.
-    open(os.path.join(OUT, ".nojekyll"), "w").close()
+    open(os.path.join(out, ".nojekyll"), "w").close()
 
-    print(f"собрано: {len(feed)} записей → {OUT}")
+    print(f"собрано: {len(feed)} записей → {out}")
     for x in feed:
         print(f'  {x["slug"]}')
 
